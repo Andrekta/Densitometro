@@ -1,4 +1,4 @@
-   //----------------- TESTE COM A MÉDIA ----------------------------------
+
    // --------------------- formula ---------------------------------------
    // ----------------------EXEMPLO----------------------------------------
    // peso = 810gr, diametro 1,518mm,alça= 1,483, diametro do tubo= 0,65
@@ -12,244 +12,225 @@
 
 //-------------- VARIANTES GLOBAIS ---------------------------------------
 
-#include <Wire.h>               // COMUCICAÇÃO I2C BIBLIOTECA BALANÇA                   
-#include "Adafruit_VL53L0X.h"   // BIBLIOTECA SENSOR VL5310X
-#include "LiquidCrystal_I2C.h"; / /BIBLIOTECA DISPLAY
-#include "HX711.h"              // BIBLIOTECA BALANÇA 
-LiquidCrystal_I2C lcd(0x3F, 16, 2);
+
+#include <Wire.h>
+#include <Adafruit_VL53L0X.h>
+#include <HX711.h>
+#include <PushButton.h>
+#include "LiquidCrystal_I2C.h"
+
+// Definições de pinos
+#define pinDT A1
+#define pinSCK A0
+#define pinBotao 8
+#define pinLed1 7 // LED verde
+#define pinLed2 6 // LED amarelo
+#define pinLed3 5 // LED vermelho
+
+// Limites de densidade
+const float DENSIDADE_MIN3 = 100; // vermelho baixo
+const float DENSIDADE_MAX3 = 329; // vermelho baixo
+const float DENSIDADE_MIN4 = 330; // amarelo baixo
+const float DENSIDADE_MAX4 = 339; // amarelo baixo
+const float DENSIDADE_MIN1 = 340; // verde
+const float DENSIDADE_MAX1 = 380; // verde
+const float DENSIDADE_MIN2 = 381; // amarelo alto
+const float DENSIDADE_MAX2 = 390; // amarelo alto
+const float DENSIDADE_MIN5 = 391; // vermelho alto
+const float DENSIDADE_MAX5 = 600; // vermelho alto
+
+// Instanciando objetos
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
-HX711 escala;
-#define DT A1                   // DEFINIÇÃO DO PINO MODULO PESO
-#define SCK A0                  // DEFINIÇÃO DO PINO MODULO PESO
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
+HX711 scale;
+PushButton botao(pinBotao);
 
-const int ANALOG_PIN = SCL; //A0
-float valor1;                   // 3,14 constante
-float valor2;                   // 4 constante
-float valor3;                   // diametro da bobina em 166mm
-float valor4;                   // diametro do tubo em mm
-float valor5;                   // alça em mm
-float valor6;                   // peso 932
-float resultado1, resultado2, resultado3, resultadoVolume, resultadoDensidade, distanciaEncontrada, centro, diametroBobina;
-float media = 0;
-float valor = 0;
-int x = 0;
+// Variáveis globais
+float valorPi = 3.14159;
+float alca = 148; // altura da bobina (em mm)
+float diametroTubo = 64; // Diâmetro do tubo (em mm)
+float peso = 0; // Peso
+float centro = 123.5; // Distancia do centro até o sensor (em mm)
+float diametroBobina = 0; // Diâmetro da bobina (em mm)
+float resultadoVolume = 0, resultadoDensidade = 0, distanciaEncontrada = 0; 
+const int numReadings = 10; // Número de leituras do sensor
+int readings[numReadings];
+bool lastButtonState = LOW;
+int leituraCount = 0; // Contador para a numeração sequencial das leituras
 
-//DEFINICAO DOS PINOS
-
-#define pinLed1  7  //definição de pino VERDE
-#define pinLed2  6  //definição de pino AMARELO
-#define pinLed3  5  //definição de pino VERMELHO
-
-//-------------------------- INICIO SETUP --------------------------------
+//========================== SETUP =========================
 void setup() {
-
-  if (!lox.begin()) {
-    while(1);
-  }
- 
- escala.begin (DT, SCK);
- Serial.begin(9600);
- Serial.print("Leitura do Valor ADC: ");
- Serial.println(escala.read()); // Aguada até o dispositivo estar pronto
- Serial.println("Nao coloque nada na balanca!");
- Serial.println("Iniciando...");
- escala.set_scale(-373000); // Substituir o valor encontrado para escala //387000   889
- escala.tare(20); // O peso é chamado de Tare.
- Serial.println("Insira o item para Pesar");
- 
- pinMode(pinLed1, OUTPUT); //VERDE
- pinMode(pinLed2, OUTPUT); //AMARELO
- pinMode(pinLed3, OUTPUT); //VERMELHO
- 
- lcd.init();
- lcd.backlight();
- 
- // valores fixos
- valor1 = 3.14;  // constante
- valor2 = 4;    // constante
- //valor3 = 1.520;  //diam. da bobina 1518
- valor4 = 0.65;  // diametro do tubo
- valor5 = 1.483;//alça
- centro = 135; // centralização 1.250
-
-  //resultadoVolume = valor1/valor2*(valor3*valor3) - (valor4*valor4)*valor5; 
-resultado1 = valor1/valor2;
-
-resultado2 = valor3*valor3-valor4*valor4;
-
-resultadoVolume = resultado1*resultado2*valor5;
-
-resultadoDensidade = valor6 / resultadoVolume; 
-
-
-  Serial.begin(9600);
-  Serial.print("Valor1: ");
-  Serial.println(valor1);
-
-  Serial.print("Valor2: ");
-  Serial.println(valor2);
-
-   Serial.print("Valor3: ");
-  Serial.println(valor3);
-
-  Serial.print("Valor4: ");
-  Serial.println(valor4);
-
-  Serial.print("Valor5: ");
-  Serial.println(valor5);
-
-  Serial.print("valor6: ");
-  Serial.println(valor6);
-
-  Serial.print("resultado1: ");
-  Serial.println(resultado1);
-
-  Serial.print("resultado2: ");
-  Serial.println(resultado2);
-
-  Serial.print("resultadoVolume: ");
-  Serial.println(resultadoVolume);
-
-  Serial.print("resultadoDensidade: ");
-  Serial.println(resultadoDensidade);
-
-  
-}
-// ------------------FIM  DO  SETUP -------------------------------
-
-//-------------------- INICIO LOOP ---------------------------------
-void loop() {
-//analog.update();// MEDIA MOVEL
-
-VL53L0X_RangingMeasurementData_t measure;
-
-   x = 0;
-valor = 0;
-
-
-while(x < 10)
-
-{ 
-
-valor = (valor + measure.RangeMilliMeter );
-delay(400); 
-x++;
-
-//==========================================
-Serial.print("Reading a measurement... ");
-     lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
-
-       if (measure.RangeStatus != 4) {  // phase failures have incorrect data
-    Serial.print("Distance (mm): "); Serial.println(measure.RangeMilliMeter);
-     } else {
-      Serial.println(" out of range ");
-    
-    //========================================
-
+    Serial.begin(9600);
+    if (!lox.begin()) {
+        Serial.println(F("Falha ao encontrar o chip VL53L0X"));
+        while (1);  // Se não encontrar o sensor, entra em loop infinito
     }
-media = valor/10; 
+    Serial.println("DENSITÔMETRO INICIADO!");
 
+    pinMode(pinBotao, INPUT_PULLUP);
+    pinMode(pinLed1, OUTPUT);
+    pinMode(pinLed2, OUTPUT);
+    pinMode(pinLed3, OUTPUT);
+
+    lcd.init();
+    lcd.backlight();
+    scale.begin(pinDT, pinSCK);
+    scale.set_scale(-374250); // Calibração do HX711 373000
+    scale.tare();
+    Serial.println("Setup Finalizado!");
+
+    // Inicializa o array de leituras
+    for (int i = 0; i < numReadings; i++) {
+        readings[i] = 0;
+    }
 }
-     Serial.begin(9600);// repetiu
-     Serial.print("Reading a measurement... ");
-     lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
+
+//========================== FUNÇÕES =========================
+
+// Função para atualizar LEDs
+void updateLEDs(float densidade) {
+    if (densidade >= DENSIDADE_MIN1 && densidade <= DENSIDADE_MAX1) {
+        digitalWrite(pinLed1, HIGH); // Verde
+        digitalWrite(pinLed2, LOW);
+        digitalWrite(pinLed3, LOW);
+    } else if ((densidade >= DENSIDADE_MIN2 && densidade <= DENSIDADE_MAX2) || 
+               (densidade >= DENSIDADE_MIN4 && densidade <= DENSIDADE_MAX4)) {
+        digitalWrite(pinLed1, LOW);
+        digitalWrite(pinLed2, HIGH); // Amarelo
+        digitalWrite(pinLed3, LOW);
+    } else if ((densidade >= DENSIDADE_MIN3 && densidade <= DENSIDADE_MAX3) || 
+               (densidade >= DENSIDADE_MIN5 && densidade <= DENSIDADE_MAX5)) {
+        digitalWrite(pinLed1, LOW);
+        digitalWrite(pinLed2, LOW);
+        digitalWrite(pinLed3, HIGH); // Vermelho
+    } else {
+        digitalWrite(pinLed1, LOW);
+        digitalWrite(pinLed2, LOW);
+        digitalWrite(pinLed3, LOW); // Desliga todos os LEDs
+    }
+}
+
+// Função para calcular o volume e a densidade
+void calcularDensidade() {
+    // Cálculo do volume
+    resultadoVolume = (valorPi / 4) * (pow(diametroBobina, 2) - pow(diametroTubo, 2)) * alca;
+    
+    // Convertendo o volume de mm³ para dm³ (1 dm³ = 1000 cm³ = 1000000 mm³)
+    resultadoVolume = resultadoVolume / 1000000.0;  // Volume em dm³
+
+    // Exibição do volume no Serial
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Volume:");
+    lcd.print(resultadoVolume, 4); // Exibe o volume no LCD
+
+    delay(2000); // Pausa para visualizar o volume antes de exibir a densidade
+
+    // Cálculo da densidade
+    resultadoDensidade = (peso / resultadoVolume)*1000;
+
+    // Exibição do peso e da densidade no LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Peso: ");
+    lcd.print(peso, 3);
+    lcd.print(" kg");   
+    lcd.setCursor(9, 1);
+    lcd.print("Dia.");
+    lcd.print(int(diametroBobina));
+    lcd.setCursor(0, 1);
+    lcd.print("De:");
+    lcd.print(int(resultadoDensidade));
+
+    // Atualiza LEDs
+    updateLEDs(resultadoDensidade);
+
+    // Exibição da densidade no Serial
+    Serial.print(leituraCount);
+    Serial.print(" | Peso: ");
+    Serial.print(peso, 3);
+    Serial.print(" g | Diâmetro: ");
+    Serial.print(diametroBobina, 2);
+    Serial.print(" mm | Volume: ");
+    Serial.print(resultadoVolume, 6);
+    Serial.print(" dm³ | Densidade: ");
+    Serial.print(resultadoDensidade, 2);
+    Serial.println(" g,dm³ | ");
+}
+
+// Função para calcular a média da distância, descartando as 2 maiores e as 2 menores leituras
+float calcularMediaDistancia() {
+    float soma = 0;
+    
+    // Coleta as 10 leituras do sensor
+    for (int i = 0; i < numReadings; i++) {
+        VL53L0X_RangingMeasurementData_t measure;
+        lox.rangingTest(&measure, false);
+        if (measure.RangeStatus != 4) {
+            readings[i] = measure.RangeMilliMeter; // Salva a distância medida em milímetros
+        } else {
+            readings[i] = 0; // Em caso de erro, armazena 0
+        }
+        delay(50); // Atraso entre as leituras
+    }
+
+    // Ordena as leituras (bubble sort)
+    for (int i = 0; i < numReadings - 1; i++) {
+        for (int j = i + 1; j < numReadings; j++) {
+            if (readings[i] > readings[j]) {
+                int temp = readings[i];
+                readings[i] = readings[j];
+                readings[j] = temp;
+            }
+        }
+    }
+
+    // Descarta as 2 maiores e as 2 menores leituras
+    for (int i = 2; i < numReadings - 2; i++) {
+        soma += readings[i];
+    }
+
+    // Calcula a média das 6 leituras restantes
+    return soma / 6;
+}
+
+//========================== LOOP =========================
+void loop() {
+    bool currentButtonState = digitalRead(pinBotao);
+    if (currentButtonState == LOW && lastButtonState == HIGH) {
+        // Coleta de medidas da balança e cálculo da densidade
+        scale.power_up();
+        peso = scale.get_units(20);
+        scale.power_down();
+
+        // Coleta da média da distância
+        distanciaEncontrada = calcularMediaDistancia();
+
+        // Corrigindo erro de 14% de ajuste no diâmetro
+        //diametro = diametroBobina - porcentagem;
+
+        // Calcula o diâmetro da bobina
+        diametroBobina = (centro - distanciaEncontrada) * 2;
+        
+        // Incrementa o contador de leituras
+        leituraCount++;
+       
+        // Chama a função para calcular e exibir a densidade
+        calcularDensidade();
+    }
+    lastButtonState = currentButtonState;
+    delay(50); // Atraso para o botão não ser pressionado repetidamente
+}
+
 
   
-lox.rangingTest(&measure, false); // MEDIA MOVEL
-  
- distanciaEncontrada =  measure.RangeMilliMeter;
 
- diametroBobina = centro - distanciaEncontrada ;
- media = 2 *  diametroBobina/100;  //tem que ser 2   valor3
- valor6 = escala.get_units(20);
-
- resultado1 = valor1/valor2;
-
- resultado2 = media*media-valor4*valor4;// valor3
-
- resultadoVolume = resultado1*resultado2*valor5;
-
- resultadoDensidade = (valor6 / resultadoVolume)*1000; 
-
- int valorLido = digitalRead (8);
  
- lcd.setCursor(0, 0);   // 0ºlinha 0ºcoluna
- lcd.print ("P");
- lcd.setCursor(0, 1);   // 0ºlinha 1ºcoluna
- lcd.print ("DENS.");
- lcd.setCursor(10, 0);   // 6ºlinha 0ºcoluna
- lcd.print ("D");
- lcd.setCursor(12, 0);   // 6ºlinha 0ºcoluna
- lcd.print (media); // valor3
- lcd.setCursor(8, 1);   // 8ºlinha 1ºcoluna
- lcd.print (resultadoDensidade);
- lcd.println("dm");
- lcd.setCursor(1, 0);
- lcd.print(escala.get_units(20), 3);
- lcd.println(" kg ");
 
-  Serial.begin(9600); //repetiu
-  Serial.print("valor6: ");
-  Serial.println(valor6);
 
-  Serial.print("valor3: ");
-  Serial.println(valor3);
-
-  Serial.print("Densidade: ");
-  Serial.println(resultadoDensidade);
-
-  Serial.print("distanciaEncontrada "); //(distanciaEncontrada);
-  Serial.println( measure.RangeMilliMeter);//(media);;
-
-  Serial.print(" media ");
-  Serial.println(media); 
-
-   Serial.println("");
-   delay(50);
-  
-  //-------------  led verde para boas condições -------------------
-
-  // criando as condicoes se a densidade for entre 340 e 360
-  if (resultadoDensidade <= 360 and resultadoDensidade>=340)  {
-    digitalWrite(pinLed1, HIGH); //liga o LED verde
-    digitalWrite(pinLed2, LOW); //liga o LED amarelo
-    digitalWrite(pinLed3, LOW); //liga o LED verde
-  }
-  // criando as condicoes se a densidade for entre 361 e 370
-  if (resultadoDensidade <= 370 and resultadoDensidade>=361)  {
-    digitalWrite(pinLed2, HIGH); //liga o LED amarelo
-    digitalWrite(pinLed1, LOW); //liga o LED verde
-    digitalWrite(pinLed3, LOW); //liga o LED vermelho
-  }
-    
-  
-  // criando as condicoes se a densidade for entre 330 e 339
-  if (resultadoDensidade <= 339 and resultadoDensidade>=330)  {
-    digitalWrite(pinLed2, HIGH); //liga o LED amarelo
-    digitalWrite(pinLed1, LOW); //liga o LED verde
-    digitalWrite(pinLed3, LOW); //liga o LED vermelho
-  }
-  
-  // criando as condicoes se a densidade for entre 320 e 329
-  if (resultadoDensidade <= 329 and resultadoDensidade>=320)  {
-    digitalWrite(pinLed3, HIGH); //liga o LED vermelho
-    digitalWrite(pinLed2, LOW); //liga o LED amarelo
-    digitalWrite(pinLed1, LOW); //liga o LED verde
-  
-  }
-
-  // criando as condicoes se a densidade for entre 371 e 380
-  if (resultadoDensidade <= 380 and resultadoDensidade>=371)  {
-    digitalWrite(pinLed3, HIGH); //liga o LED vermelho
-    digitalWrite(pinLed2, LOW); //liga o LED amarelo
-    digitalWrite(pinLed1, LOW); //liga o LED verde
-
-    
-  }
-   {
-   Serial.println("");
-   delay(50);
-  }
-   }
+ 
 
    
+   
+    
+ 
